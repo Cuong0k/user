@@ -27,7 +27,7 @@ class VpnService {
     _v2ray = V2ray(
       onStatusChanged: (status) {
         lastRawState = status.state;
-        _trace('status=${status.state} up=${status.upload} dn=${status.download}');
+        _trace('STATUS=${status.state} up=${status.upload} dn=${status.download}');
         onStatus?.call(_map(status.state), status);
       },
     );
@@ -51,7 +51,7 @@ class VpnService {
 
   String _rawLink(ServerNode node) {
     final link = node.shareLink;
-    if (link == null || link.isEmpty) throw Exception('Node has no share link');
+    if (link == null || link.isEmpty) throw Exception('No share link');
     return link;
   }
 
@@ -63,13 +63,28 @@ class VpnService {
       for (final ob in outs) {
         if (ob is Map && ob['protocol'] == 'shadowsocks') {
           final servers = ob['settings']?['servers'];
-          if (servers is List && servers.isNotEmpty) {
-            return servers[0]['address'] as String?;
-          }
+          if (servers is List && servers.isNotEmpty) return servers[0]['address'] as String?;
         }
       }
     } catch (_) {}
     return null;
+  }
+
+  String _sanitize(String raw, {String? ssIp}) {
+    try {
+      final m = Map<String, dynamic>.from(jsonDecode(raw));
+      final directIps = <String>['1.1.1.1', '8.8.8.8'];
+      if (ssIp != null) { directIps.add(ssIp); _trace('inject ip direct: $ssIp'); }
+      m['routing'] = {
+        'domainStrategy': 'UseIP',
+        'rules': [
+          {'type': 'field', 'ip': directIps, 'outboundTag': 'direct'},
+          {'type': 'field', 'network': 'tcp,udp', 'outboundTag': 'proxy'}
+        ]
+      };
+      m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
+      return jsonEncode(m);
+    } catch (e) { _trace('sanitize err: $e'); return raw; }
   }
 
   Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
@@ -77,38 +92,31 @@ class VpnService {
     await init();
     final link = _rawLink(node);
     final parser = V2ray.parseFromURL(link);
-    _trace('parsed remark=${parser.remark}');
+    _trace('parsed=${parser.remark}');
     final rawCfg = parser.getFullConfiguration();
     final ssHost = _extractSsHost(rawCfg);
-    _trace('ss host: $ssHost');
-    List<String>? bypassSubnets;
-    if (!proxyOnly && ssHost != null) {
+    _trace('ss host=$ssHost');
+    String? ssIp;
+    if (ssHost != null) {
       try {
         final addrs = await InternetAddress.lookup(ssHost);
-        bypassSubnets = addrs
-            .where((a) => a.type == InternetAddressType.IPv4)
-            .map((a) => '${a.address}/32')
-            .toList();
-        if (bypassSubnets.isEmpty) bypassSubnets = null;
-        _trace('bypass: $bypassSubnets');
-      } catch (e) {
-        _trace('lookup failed: $e');
-      }
+        final v4 = addrs.where((a) => a.type == InternetAddressType.IPv4).toList();
+        if (v4.isNotEmpty) ssIp = v4.first.address;
+        _trace('ss ip=$ssIp');
+      } catch (e) { _trace('lookup err: $e'); }
     }
-    lastConfig = rawCfg;
-    _trace('config len=${rawCfg.length}');
+    final cfg = _sanitize(rawCfg, ssIp: ssIp);
+    lastConfig = cfg;
+    _trace('cfg len=${cfg.length}');
     if (!proxyOnly) {
       final ok = await requestPermission();
-      _trace('requestPermission=$ok');
+      _trace('perm=$ok');
       if (!ok) throw Exception('VPN permission denied');
     }
     final remark = node.cleanName.isNotEmpty ? node.cleanName : parser.remark;
     await _v2ray.startV2Ray(
-      remark: remark,
-      config: rawCfg,
-      blockedApps: null,
-      bypassSubnets: bypassSubnets,
-      proxyOnly: proxyOnly,
+      remark: remark, config: cfg,
+      blockedApps: null, bypassSubnets: null, proxyOnly: proxyOnly,
     );
     _trace('startV2Ray() returned');
   }
@@ -126,11 +134,9 @@ class VpnService {
   }
 
   Future<int> ping(ServerNode node) async {
-    final host = node.host;
-    final port = int.tryParse(node.port.split('-').first) ?? 443;
+    final host = node.host; final port = int.tryParse(node.port.split('-').first) ?? 443;
     if (host.isEmpty) return -1;
-    final sw = Stopwatch()..start();
-    Socket? socket;
+    final sw = Stopwatch()..start(); Socket? socket;
     try {
       socket = await Socket.connect(host, port, timeout: const Duration(seconds: 5));
       sw.stop(); return sw.elapsedMilliseconds;
