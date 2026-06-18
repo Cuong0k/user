@@ -199,6 +199,8 @@ class _ConnectButton extends StatelessWidget {
             final logs = snap.data ?? ['(dang tai log...)'];
             final text = 'rawState: ${vpn.rawState}\n\n'
                 '=== TRACE ===\n${vpn.trace.join('\n')}\n\n'
+                '=== CONFIG (gui core) ===\n'
+                '${vpn.config.length > 800 ? vpn.config.substring(0, 800) : vpn.config}\n\n'
                 '=== XRAY LOG (cuoi) ===\n'
                 '${logs.length > 40 ? logs.sublist(logs.length - 40).join('\n') : logs.join('\n')}';
             return SizedBox(

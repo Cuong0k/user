@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_v2ray_client/flutter_v2ray.dart';
 import '../models/server_node.dart';
@@ -12,7 +13,8 @@ class VpnService {
   bool _inited = false;
   void Function(VpnState state, V2RayStatus status)? onStatus;
 
-  String lastRawState = '(chưa có)';
+  String lastRawState = '(chua co)';
+  String lastConfig = '';
   final List<String> debugTrace = [];
 
   void _trace(String s) {
@@ -53,13 +55,34 @@ class VpnService {
     return link;
   }
 
+  String _sanitize(String raw) {
+    try {
+      final m = Map<String, dynamic>.from(jsonDecode(raw));
+      m.remove('routing');
+      m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
+      if (m['inbounds'] is List) {
+        for (final inb in (m['inbounds'] as List)) {
+          if (inb is Map) {
+            inb['sniffing'] = {'enabled': true, 'destOverride': ['http', 'tls']};
+          }
+        }
+      }
+      return jsonEncode(m);
+    } catch (e) {
+      _trace('sanitize loi: $e');
+      return raw;
+    }
+  }
+
   Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
     _trace('connect() start node=${node.cleanName}');
     await init();
     final link = _rawLink(node);
-    _trace('link=${link.length > 40 ? link.substring(0, 40) + "..." : link}');
     final parser = V2ray.parseFromURL(link);
     _trace('parsed remark=${parser.remark}');
+    final cfg = _sanitize(parser.getFullConfiguration());
+    lastConfig = cfg;
+    _trace('config len=${cfg.length}');
     if (!proxyOnly) {
       final ok = await requestPermission();
       _trace('requestPermission=$ok');
@@ -68,7 +91,7 @@ class VpnService {
     final remark = node.cleanName.isNotEmpty ? node.cleanName : parser.remark;
     await _v2ray.startV2Ray(
       remark: remark,
-      config: parser.getFullConfiguration(),
+      config: cfg,
       blockedApps: null,
       bypassSubnets: null,
       proxyOnly: proxyOnly,
@@ -84,9 +107,9 @@ class VpnService {
   Future<List<String>> fetchLogs() async {
     try {
       final logs = await _v2ray.getLogs();
-      return logs.isEmpty ? ['(log rỗng)'] : logs;
+      return logs.isEmpty ? ['(log rong)'] : logs;
     } catch (e) {
-      return ['getLogs lỗi: $e'];
+      return ['getLogs loi: $e'];
     }
   }
 

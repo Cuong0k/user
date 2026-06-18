@@ -51,6 +51,7 @@ class VpnProvider extends ChangeNotifier {
   String get rawState => _vpn.lastRawState;
   List<String> get trace => _vpn.debugTrace;
   Future<List<String>> logs() => _vpn.fetchLogs();
+  String get config => _vpn.lastConfig;
 
   String _fmt(int bytes) {
     if (bytes < 1024) return '$bytes B';
