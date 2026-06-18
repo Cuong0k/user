@@ -65,6 +65,14 @@ class VpnService {
           }
         }
       }
+      if (m['outbounds'] is List) {
+        for (final ob in (m['outbounds'] as List)) {
+          if (ob is Map && ob['protocol'] == 'shadowsocks') {
+            ob.remove('streamSettings');
+            ob.remove('mux');
+          }
+        }
+      }
       m['routing'] = {
         'domainStrategy': 'AsIs',
         'rules': [
