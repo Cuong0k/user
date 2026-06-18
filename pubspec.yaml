@@ -1,0 +1,41 @@
+name: slag_clone
+description: "VPN client (Flutter + v2board/Xboard backend) — clone of SlagClient architecture."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # --- VPN core ---
+  # flutter_v2ray nhúng xray-core, hỗ trợ VLESS / VMess / Trojan / Shadowsocks.
+  # SlagClient gốc dùng core sing-box (libomnxt.so). flutter_v2ray là lựa chọn
+  # mã nguồn mở tương đương để dựng lại nhanh. Có thể thay bằng sing-box plugin sau.
+  flutter_v2ray: ^1.1.1
+
+  # --- Networking / state ---
+  dio: ^5.7.0
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+
+  # --- UI giống app gốc ---
+  country_flags: ^3.2.0          # cờ quốc gia ở danh sách node
+  qr_flutter: ^4.1.0             # QR mời bạn
+  flutter_svg: ^2.0.10+1         # icon tab svg
+  url_launcher: ^6.3.0
+  fl_chart: ^0.69.0              # biểu đồ Statistics
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/translations/
