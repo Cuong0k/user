@@ -58,8 +58,6 @@ class VpnService {
   String _sanitize(String raw) {
     try {
       final m = Map<String, dynamic>.from(jsonDecode(raw));
-      m.remove('routing');
-      m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
       if (m['inbounds'] is List) {
         for (final inb in (m['inbounds'] as List)) {
           if (inb is Map) {
@@ -67,6 +65,14 @@ class VpnService {
           }
         }
       }
+      m['routing'] = {
+        'domainStrategy': 'AsIs',
+        'rules': [
+          {'type': 'field', 'port': 53, 'outboundTag': 'direct'},
+          {'type': 'field', 'network': 'tcp,udp', 'outboundTag': 'proxy'}
+        ]
+      };
+      m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
       return jsonEncode(m);
     } catch (e) {
       _trace('sanitize loi: $e');
