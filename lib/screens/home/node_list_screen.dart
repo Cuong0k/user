@@ -41,7 +41,7 @@ class _NodeListScreenState extends State<NodeListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Node List'),
+        title: const Text('Danh Sách Server'),
         actions: [
           IconButton(
             icon: _testing
@@ -50,7 +50,7 @@ class _NodeListScreenState extends State<NodeListScreen> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.speed),
-            tooltip: 'Latency Test',
+            tooltip: 'Kiểm tra độ trễ',
             onPressed: _testing ? null : _testAll,
           ),
         ],
@@ -63,7 +63,7 @@ class _NodeListScreenState extends State<NodeListScreen> {
               onChanged: (v) => setState(() => _query = v),
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: 'Search node name, country, city...',
+                hintText: 'Tìm server theo tên, quốc gia...',
               ),
             ),
           ),
@@ -72,14 +72,14 @@ class _NodeListScreenState extends State<NodeListScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : nodes.isEmpty
                     ? const Center(
-                        child: Text('No nodes',
+                        child: Text('Không có server',
                             style: TextStyle(color: AppColors.textSecondary)))
                     : ListView.separated(
                         itemCount: nodes.length,
                         separatorBuilder: (_, __) =>
                             const Divider(height: 1, color: AppColors.surface2),
-                        itemBuilder: (_, i) =>
-                            _NodeTile(node: nodes[i], ping: servers.pings[nodes[i].id]),
+                        itemBuilder: (_, i) => _NodeTile(
+                            node: nodes[i], ping: servers.pings[nodes[i].id]),
                       ),
           ),
         ],
@@ -113,17 +113,19 @@ class _NodeTile extends StatelessWidget {
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: CountryFlag.fromCountryCode(node.countryCode, height: 28, width: 38),
+        child:
+            CountryFlag.fromCountryCode(node.countryCode, height: 28, width: 38),
       ),
       title: Text(node.cleanName,
           style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: node.isOnline ? AppColors.textPrimary : AppColors.textSecondary)),
-      subtitle: Text('${node.type} · x${node.rate}'),
+              color: node.isOnline
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_pingText, style: TextStyle(color: _pingColor, fontSize: 12)),
+          Text(_pingText, style: TextStyle(color: _pingColor, fontSize: 13)),
           const SizedBox(width: 8),
           if (selected)
             const Icon(Icons.check_circle, color: AppColors.primary, size: 20),

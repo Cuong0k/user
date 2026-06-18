@@ -8,14 +8,18 @@ class VpnProvider extends ChangeNotifier {
 
   VpnState _state = VpnState.disconnected;
   String _duration = '00:00:00';
-  String _uploadSpeed = '0 KB/s';
-  String _downloadSpeed = '0 KB/s';
+  String _uploadSpeed = '0 B/s';
+  String _downloadSpeed = '0 B/s';
+  String _uploadTotal = '0 B';
+  String _downloadTotal = '0 B';
   ServerNode? _activeNode;
 
   VpnState get state => _state;
   String get duration => _duration;
   String get uploadSpeed => _uploadSpeed;
   String get downloadSpeed => _downloadSpeed;
+  String get uploadTotal => _uploadTotal;
+  String get downloadTotal => _downloadTotal;
   ServerNode? get activeNode => _activeNode;
   bool get isConnected => _state == VpnState.connected;
 
@@ -23,8 +27,10 @@ class VpnProvider extends ChangeNotifier {
     _vpn.onStatus = (state, V2RayStatus status) {
       _state = state;
       _duration = status.duration;
-      _uploadSpeed = _fmt(status.uploadSpeed);
-      _downloadSpeed = _fmt(status.downloadSpeed);
+      _uploadSpeed = '${_fmt(status.uploadSpeed)}/s';
+      _downloadSpeed = '${_fmt(status.downloadSpeed)}/s';
+      _uploadTotal = _fmt(status.upload);
+      _downloadTotal = _fmt(status.download);
       notifyListeners();
     };
     await _vpn.init();
@@ -42,11 +48,12 @@ class VpnProvider extends ChangeNotifier {
 
   Future<int> ping(ServerNode node) => _vpn.ping(node);
 
-  String _fmt(int bytesPerSec) {
-    if (bytesPerSec < 1024) return '$bytesPerSec B/s';
-    if (bytesPerSec < 1024 * 1024) {
-      return '${(bytesPerSec / 1024).toStringAsFixed(1)} KB/s';
+  String _fmt(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
     }
-    return '${(bytesPerSec / 1024 / 1024).toStringAsFixed(1)} MB/s';
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
   }
 }
