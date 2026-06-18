@@ -43,64 +43,83 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Banner trạng thái gói cước trên đầu màn Home.
 class _SubscriptionBanner extends StatelessWidget {
+  String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
-    final active = user?.hasActiveSubscription ?? false;
-    final exp = user?.expireDate;
+    final auth = context.watch<AuthProvider>();
+    final active = auth.user?.hasActiveSubscription ?? false;
+    final plan = auth.planName ?? 'No package';
+    final exp = auth.expireAt;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: active
-              ? [AppColors.primary, AppColors.primaryGlow]
+              ? [const Color(0xFF2563EB), AppColors.primaryGlow]
               : [AppColors.surface2, AppColors.surface],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6))
+              ]
+            : null,
       ),
       child: Row(
         children: [
-          Icon(active ? Icons.verified_user : Icons.lock_clock,
-              color: Colors.white, size: 28),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(active ? Icons.verified_user : Icons.lock_clock,
+                color: Colors.white, size: 26),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  active ? 'Subscription Valid' : 'No Valid Subscription',
+                  plan,
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 16),
+                      fontSize: 17),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  active && exp != null
-                      ? 'Expires: ${exp.toString().split(' ').first}'
-                      : 'Subscribe to enjoy global high-speed network',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                        active ? Icons.check_circle : Icons.error_outline,
+                        size: 14,
+                        color: Colors.white70),
+                    const SizedBox(width: 4),
+                    Text(
+                      exp != null
+                          ? 'Hạn dùng: ${_fmt(exp)}'
+                          : (active ? 'Đang hoạt động' : 'Chưa có gói'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          if (!active)
-            TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(backgroundColor: Colors.white),
-              child: const Text('Subscribe',
-                  style: TextStyle(color: AppColors.primary)),
-            ),
         ],
       ),
     );
   }
 }
 
-/// Nút tròn lớn bật/tắt VPN — phần trung tâm của app.
 class _ConnectButton extends StatelessWidget {
   final VpnProvider vpn;
   final dynamic node;
@@ -180,7 +199,6 @@ class _ConnectButton extends StatelessWidget {
   }
 }
 
-/// Dòng hiển thị thời lượng + tốc độ up/down khi đã kết nối.
 class _StatusLine extends StatelessWidget {
   final VpnProvider vpn;
   const _StatusLine({required this.vpn});
@@ -209,7 +227,6 @@ class _StatusLine extends StatelessWidget {
       );
 }
 
-/// Thẻ chọn node hiện tại -> mở danh sách node.
 class _NodeSelector extends StatelessWidget {
   final dynamic node;
   const _NodeSelector({required this.node});

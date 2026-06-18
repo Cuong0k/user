@@ -32,17 +32,21 @@ class ServerProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
+      // Lấy token subscribe từ API, rồi tải node TỪ ENDPOINT TRỰC TIẾP của panel
+      // (không dùng subscribe_url rút gọn vì domain đó bị chặn access).
       final info = await _svc.getSubscribeInfo();
       final token = (info['token'] ?? '').toString();
       if (token.isNotEmpty) {
         final url = '${Api.baseUrl}/api/v1/client/subscribe?token=$token';
         _nodes = await SubscribeService.instance.fetch(url);
       }
+      // Dự phòng: nếu vẫn rỗng thì thử subscribe_url gốc rồi tới server/fetch
       if (_nodes.isEmpty) {
         final sub = (info['subscribe_url'] ?? '').toString();
         if (sub.isNotEmpty) _nodes = await SubscribeService.instance.fetch(sub);
       }
       if (_nodes.isEmpty) _nodes = await _svc.fetchServers();
+
       _selected ??= _nodes.isNotEmpty ? _nodes.first : null;
     } catch (e) {
       _error = e.toString();

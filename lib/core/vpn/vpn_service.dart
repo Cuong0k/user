@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_v2ray/flutter_v2ray.dart';
 import '../models/server_node.dart';
 
@@ -43,21 +45,60 @@ class VpnService {
     return link;
   }
 
+  /// Build config từ link rồi CHÈN DNS + bật sniffing để tránh "kết nối nhưng
+  /// không vào mạng" (thường do thiếu DNS).
+  String _fullConfig(ServerNode node) {
+    final parsed = FlutterV2ray.parseFromURL(_link(node));
+    final cfg = jsonDecode(parsed.getFullConfiguration());
+    if (cfg is Map<String, dynamic>) {
+      cfg['dns'] = {
+        'servers': ['1.1.1.1', '8.8.8.8', 'localhost'],
+      };
+      // bật sniffing cho các inbound (giúp định tuyến theo domain)
+      if (cfg['inbounds'] is List) {
+        for (final inb in (cfg['inbounds'] as List)) {
+          if (inb is Map) {
+            inb['sniffing'] = {
+              'enabled': true,
+              'destOverride': ['http', 'tls'],
+            };
+          }
+        }
+      }
+      return jsonEncode(cfg);
+    }
+    return parsed.getFullConfiguration();
+  }
+
   Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
     await init();
-    final config = FlutterV2ray.parseFromURL(_link(node));
     if (!await requestPermission()) throw Exception('VPN permission denied');
     await _v2ray.startV2Ray(
       remark: node.cleanName,
-      config: config.getFullConfiguration(),
+      config: _fullConfig(node),
       proxyOnly: proxyOnly,
     );
   }
 
   Future<void> disconnect() async => _v2ray.stopV2Ray();
 
+  /// PING KIỂU TCP: mở socket tới host:port của node, đo thời gian bắt tay.
+  /// Nhanh và ổn định hơn delay test của core. -1 = timeout.
   Future<int> ping(ServerNode node) async {
-    final config = FlutterV2ray.parseFromURL(_link(node));
-    return _v2ray.getServerDelay(config: config.getFullConfiguration());
+    final host = node.host;
+    final port = int.tryParse(node.port.split('-').first) ?? 443;
+    if (host.isEmpty) return -1;
+    final sw = Stopwatch()..start();
+    Socket? socket;
+    try {
+      socket = await Socket.connect(host, port,
+          timeout: const Duration(seconds: 5));
+      sw.stop();
+      return sw.elapsedMilliseconds;
+    } catch (_) {
+      return -1;
+    } finally {
+      socket?.destroy();
+    }
   }
 }

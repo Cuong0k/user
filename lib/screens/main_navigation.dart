@@ -4,11 +4,10 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/server_provider.dart';
 import 'home/home_screen.dart';
-import 'invite/invite_screen.dart';
 import 'statistics/statistics_screen.dart';
 import 'profile/profile_screen.dart';
 
-/// 4 tab giống SlagClient: Home / Invitation / Statistics / My.
+/// 3 tab: Home / Statistics / My (đã bỏ Invite).
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
   @override
@@ -20,7 +19,6 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final _pages = const [
     HomeScreen(),
-    InviteScreen(),
     StatisticsScreen(),
     ProfileScreen(),
   ];
@@ -53,10 +51,6 @@ class _MainNavigationState extends State<MainNavigation> {
                 icon: Icon(Icons.shield_outlined),
                 selectedIcon: Icon(Icons.shield, color: AppColors.primary),
                 label: 'Home'),
-            NavigationDestination(
-                icon: Icon(Icons.card_giftcard_outlined),
-                selectedIcon: Icon(Icons.card_giftcard, color: AppColors.primary),
-                label: 'Invite'),
             NavigationDestination(
                 icon: Icon(Icons.bar_chart_outlined),
                 selectedIcon: Icon(Icons.bar_chart, color: AppColors.primary),

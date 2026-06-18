@@ -6,7 +6,6 @@ import '../../theme/app_theme.dart';
 import '../../providers/server_provider.dart';
 import '../../providers/vpn_provider.dart';
 import '../../core/models/server_node.dart';
-import '../../providers/auth_provider.dart';
 
 class NodeListScreen extends StatefulWidget {
   const NodeListScreen({super.key});

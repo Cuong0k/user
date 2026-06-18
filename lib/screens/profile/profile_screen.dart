@@ -3,22 +3,44 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../purchase/purchase_screen.dart';
+import '../../providers/server_provider.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _updating = false;
+
+  Future<void> _updateSubscription() async {
+    setState(() => _updating = true);
+    try {
+      await context.read<AuthProvider>().refreshUser();
+      await context.read<ServerProvider>().load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã cập nhật gói & node mới nhất')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+    if (mounted) setState(() => _updating = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final user = auth.user;
+    final user = context.watch<AuthProvider>().user;
 
     return Scaffold(
       appBar: AppBar(title: const Text('My')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // Header tài khoản
           Row(
             children: [
               const CircleAvatar(
@@ -45,43 +67,36 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-
-          // Traffic usage
           _TrafficCard(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Mua / gia hạn gói
+          // Nút cập nhật gói VPN (làm mới gói + node từ server)
           ElevatedButton.icon(
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const PurchaseScreen())),
-            icon: const Icon(Icons.workspace_premium),
-            label: const Text('Purchase Package'),
+            onPressed: _updating ? null : _updateSubscription,
+            icon: _updating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.sync),
+            label: Text(_updating ? 'Đang cập nhật...' : 'Cập nhật gói VPN'),
           ),
-          const SizedBox(height: 24),
-
-          _menu(Icons.devices, 'Device Management', () {}),
-          _menu(Icons.receipt_long, 'My Orders', () {}),
-          _menu(Icons.confirmation_number, 'Redeem Code', () {}),
-          _menu(Icons.support_agent, 'Customer Service', () {}),
-          _menu(Icons.lock_outline, 'Change Password', () {}),
-          _menu(Icons.settings, 'Settings', () {}),
           const SizedBox(height: 12),
-          _menu(Icons.logout, 'Logout', () => _confirmLogout(context),
-              color: AppColors.danger),
-        ],
-      ),
-    );
-  }
 
-  Widget _menu(IconData icon, String title, VoidCallback onTap,
-      {Color? color}) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: Icon(icon, color: color ?? AppColors.textPrimary),
-        title: Text(title, style: TextStyle(color: color)),
-        trailing: const Icon(Icons.chevron_right, size: 20),
-        onTap: onTap,
+          OutlinedButton.icon(
+            onPressed: () => _confirmLogout(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              minimumSize: const Size.fromHeight(52),
+              side: const BorderSide(color: AppColors.danger),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }
@@ -135,14 +150,13 @@ class _TrafficCard extends StatelessWidget {
                 value: unlimited ? null : ratio,
                 minHeight: 10,
                 backgroundColor: AppColors.surface2,
-                valueColor:
-                    const AlwaysStoppedAnimation(AppColors.primary),
+                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
               ),
             ),
             const SizedBox(height: 10),
             Text(
               unlimited
-                  ? 'Unlimited Traffic · Used ${user.usedGB.toStringAsFixed(2)} GB'
+                  ? 'Unlimited · Used ${user.usedGB.toStringAsFixed(2)} GB'
                   : 'Used ${user.usedGB.toStringAsFixed(2)} / ${user.totalGB.toStringAsFixed(2)} GB',
               style: const TextStyle(color: AppColors.textSecondary),
             ),
