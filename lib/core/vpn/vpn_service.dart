@@ -73,6 +73,15 @@ class VpnService {
   String _sanitize(String raw, {String? ssIp}) {
     try {
       final m = Map<String, dynamic>.from(jsonDecode(raw));
+      // Xóa streamSettings (security='') + mux: xray-core 26.x crash khi security=""
+      if (m['outbounds'] is List) {
+        for (final ob in (m['outbounds'] as List)) {
+          if (ob is Map && ob['protocol'] == 'shadowsocks') {
+            ob.remove('streamSettings');
+            ob.remove('mux');
+          }
+        }
+      }
       final directIps = <String>['1.1.1.1', '8.8.8.8'];
       if (ssIp != null) { directIps.add(ssIp); _trace('inject ip direct: $ssIp'); }
       m['routing'] = {
