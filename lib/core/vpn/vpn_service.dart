@@ -43,25 +43,37 @@ class VpnService {
     return link;
   }
 
-  /// Build config xray. Với shadowsocks tự dựng tay (parser thư viện hay sai
-  /// định dạng SIP002). Các loại khác dùng parseFromURL rồi chèn DNS.
+  /// Dùng khung config của flutter_v2ray (inbound/routing mà native cần),
+  /// chỉ THAY outbound shadowsocks bằng bản parse đúng + chèn DNS.
   String _config(ServerNode node) {
     final link = _rawLink(node);
-    if (link.startsWith('ss://')) {
-      final cfg = _buildSsConfig(link);
-      if (cfg != null) return cfg;
-    }
     final parsed = FlutterV2ray.parseFromURL(link);
     final cfg = jsonDecode(parsed.getFullConfiguration());
-    if (cfg is Map<String, dynamic>) {
-      cfg['dns'] = {'servers': ['1.1.1.1', '8.8.8.8', 'localhost']};
-      return jsonEncode(cfg);
+    if (cfg is! Map<String, dynamic>) return parsed.getFullConfiguration();
+
+    cfg['dns'] = {'servers': ['1.1.1.1', '8.8.8.8', 'localhost']};
+
+    if (link.startsWith('ss://')) {
+      final ss = _ssOutbound(link);
+      if (ss != null && cfg['outbounds'] is List) {
+        final outs = cfg['outbounds'] as List;
+        // giữ nguyên tag của outbound proxy gốc (thường là "proxy")
+        final tag = (outs.isNotEmpty && outs[0] is Map && outs[0]['tag'] != null)
+            ? outs[0]['tag']
+            : 'proxy';
+        ss['tag'] = tag;
+        if (outs.isEmpty) {
+          outs.add(ss);
+        } else {
+          outs[0] = ss;
+        }
+      }
     }
-    return parsed.getFullConfiguration();
+    return jsonEncode(cfg);
   }
 
-  /// Giải mã ss:// (cả SIP002 lẫn legacy) -> config xray hoàn chỉnh.
-  String? _buildSsConfig(String link) {
+  /// Parse ss:// (SIP002 và legacy) -> outbound shadowsocks xray đúng.
+  Map<String, dynamic>? _ssOutbound(String link) {
     try {
       String body = link.substring('ss://'.length);
       final hashIdx = body.indexOf('#');
@@ -71,9 +83,9 @@ class VpnService {
       int port;
 
       if (body.contains('@')) {
-        // SIP002: base64(method:password)@host:port
         final at = body.lastIndexOf('@');
-        final ui = utf8.decode(base64.decode(base64.normalize(body.substring(0, at))));
+        final ui =
+            utf8.decode(base64.decode(base64.normalize(body.substring(0, at))));
         final ci = ui.indexOf(':');
         method = ui.substring(0, ci);
         password = ui.substring(ci + 1);
@@ -82,7 +94,6 @@ class VpnService {
         host = hp.substring(0, colon);
         port = int.parse(hp.substring(colon + 1));
       } else {
-        // legacy: base64(method:password@host:port)
         final d = utf8.decode(base64.decode(base64.normalize(body)));
         final at = d.lastIndexOf('@');
         final ui = d.substring(0, at);
@@ -95,57 +106,22 @@ class VpnService {
         port = int.parse(hp.substring(colon + 1));
       }
 
-      final config = {
-        "remarks": "ss",
-        "log": {"loglevel": "warning"},
-        "dns": {"servers": ["1.1.1.1", "8.8.8.8", "localhost"]},
-        "inbounds": [
-          {
-            "tag": "socks",
-            "port": 10808,
-            "protocol": "socks",
-            "settings": {"auth": "noauth", "udp": true, "userLevel": 8},
-            "sniffing": {"enabled": true, "destOverride": ["http", "tls"]}
-          },
-          {
-            "tag": "http",
-            "port": 10809,
-            "protocol": "http",
-            "settings": {"userLevel": 8}
-          }
-        ],
-        "outbounds": [
-          {
-            "tag": "proxy",
-            "protocol": "shadowsocks",
-            "settings": {
-              "servers": [
-                {
-                  "address": host,
-                  "port": port,
-                  "method": method,
-                  "password": password,
-                  "level": 8
-                }
-              ]
-            },
-            "streamSettings": {"network": "tcp"}
-          },
-          {"tag": "direct", "protocol": "freedom", "settings": {}},
-          {
-            "tag": "block",
-            "protocol": "blackhole",
-            "settings": {"response": {"type": "http"}}
-          }
-        ],
-        "routing": {
-          "domainStrategy": "IPIfNonMatch",
-          "rules": [
-            {"type": "field", "outboundTag": "proxy", "port": "0-65535"}
+      return {
+        "tag": "proxy",
+        "protocol": "shadowsocks",
+        "settings": {
+          "servers": [
+            {
+              "address": host,
+              "port": port,
+              "method": method,
+              "password": password,
+              "level": 8
+            }
           ]
-        }
+        },
+        "streamSettings": {"network": "tcp"}
       };
-      return jsonEncode(config);
     } catch (_) {
       return null;
     }
@@ -163,7 +139,6 @@ class VpnService {
 
   Future<void> disconnect() async => _v2ray.stopV2Ray();
 
-  /// Ping TCP tới host:port của node.
   Future<int> ping(ServerNode node) async {
     final host = node.host;
     final port = int.tryParse(node.port.split('-').first) ?? 443;

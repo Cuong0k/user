@@ -245,7 +245,7 @@ class _NodeSelector extends StatelessWidget {
               ),
         title: Text(node?.cleanName ?? 'Select a node',
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(node == null ? 'Country/Region' : '${node.type} · x${node.rate}'),
+        subtitle: Text(node == null ? 'Country/Region' : 'Đã chọn'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const NodeListScreen())),

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/server_provider.dart';
+import '../../providers/vpn_provider.dart';
+import '../../core/vpn/vpn_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,13 +17,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _updating = false;
 
   Future<void> _updateSubscription() async {
+    // Nếu đang bật VPN thì yêu cầu tắt trước
+    final vpn = context.read<VpnProvider>();
+    if (vpn.state == VpnState.connected || vpn.state == VpnState.connecting) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Vui lòng tắt app (ngắt VPN) rồi thực hiện lại')));
+      return;
+    }
     setState(() => _updating = true);
     try {
       await context.read<AuthProvider>().refreshUser();
       await context.read<ServerProvider>().load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã cập nhật gói & node mới nhất')));
+            const SnackBar(content: Text('Cập nhật gói dịch vụ thành công')));
       }
     } catch (e) {
       if (mounted) {
