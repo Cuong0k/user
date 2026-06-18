@@ -43,49 +43,50 @@ class VpnService {
     return link;
   }
 
-  /// Dùng khung config của flutter_v2ray (inbound/routing mà native cần),
-  /// chỉ THAY outbound shadowsocks bằng bản parse đúng + chèn DNS.
   String _config(ServerNode node) {
     final link = _rawLink(node);
-    final parsed = FlutterV2ray.parseFromURL(link);
-    final cfg = jsonDecode(parsed.getFullConfiguration());
-    if (cfg is! Map<String, dynamic>) return parsed.getFullConfiguration();
-
-    cfg['dns'] = {'servers': ['1.1.1.1', '8.8.8.8', 'localhost']};
-
-    if (link.startsWith('ss://')) {
-      final ss = _ssOutbound(link);
-      if (ss != null && cfg['outbounds'] is List) {
-        final outs = cfg['outbounds'] as List;
-        // giữ nguyên tag của outbound proxy gốc (thường là "proxy")
-        final tag = (outs.isNotEmpty && outs[0] is Map && outs[0]['tag'] != null)
-            ? outs[0]['tag']
-            : 'proxy';
-        ss['tag'] = tag;
-        if (outs.isEmpty) {
-          outs.add(ss);
-        } else {
-          outs[0] = ss;
+    final parser = FlutterV2ray.parseFromURL(link);
+    final raw = parser.getFullConfiguration();
+    if (!link.startsWith('ss://')) return raw;
+    final ss = _parseSs(link);
+    if (ss == null) return raw;
+    try {
+      final cfg = jsonDecode(raw);
+      final outs = cfg['outbounds'];
+      if (outs is List) {
+        for (final ob in outs) {
+          if (ob is Map && ob['protocol'] == 'shadowsocks') {
+            ob['settings'] = {
+              'servers': [
+                {
+                  'address': ss['address'],
+                  'port': ss['port'],
+                  'method': ss['method'],
+                  'password': ss['password'],
+                  'level': 8,
+                  'ota': false
+                }
+              ]
+            };
+          }
         }
       }
+      return jsonEncode(cfg);
+    } catch (_) {
+      return raw;
     }
-    return jsonEncode(cfg);
   }
 
-  /// Parse ss:// (SIP002 và legacy) -> outbound shadowsocks xray đúng.
-  Map<String, dynamic>? _ssOutbound(String link) {
+  Map<String, dynamic>? _parseSs(String link) {
     try {
       String body = link.substring('ss://'.length);
       final hashIdx = body.indexOf('#');
       if (hashIdx >= 0) body = body.substring(0, hashIdx);
-
       String method, password, host;
       int port;
-
       if (body.contains('@')) {
         final at = body.lastIndexOf('@');
-        final ui =
-            utf8.decode(base64.decode(base64.normalize(body.substring(0, at))));
+        final ui = utf8.decode(base64.decode(base64.normalize(body.substring(0, at))));
         final ci = ui.indexOf(':');
         method = ui.substring(0, ci);
         password = ui.substring(ci + 1);
@@ -105,23 +106,7 @@ class VpnService {
         host = hp.substring(0, colon);
         port = int.parse(hp.substring(colon + 1));
       }
-
-      return {
-        "tag": "proxy",
-        "protocol": "shadowsocks",
-        "settings": {
-          "servers": [
-            {
-              "address": host,
-              "port": port,
-              "method": method,
-              "password": password,
-              "level": 8
-            }
-          ]
-        },
-        "streamSettings": {"network": "tcp"}
-      };
+      return {'address': host, 'port': port, 'method': method, 'password': password};
     } catch (_) {
       return null;
     }
@@ -146,8 +131,7 @@ class VpnService {
     final sw = Stopwatch()..start();
     Socket? socket;
     try {
-      socket = await Socket.connect(host, port,
-          timeout: const Duration(seconds: 5));
+      socket = await Socket.connect(host, port, timeout: const Duration(seconds: 5));
       sw.stop();
       return sw.elapsedMilliseconds;
     } catch (_) {
