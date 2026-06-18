@@ -47,27 +47,45 @@ class VpnService {
     final link = _rawLink(node);
     final parser = FlutterV2ray.parseFromURL(link);
     final raw = parser.getFullConfiguration();
-    if (!link.startsWith('ss://')) return raw;
-    final ss = _parseSs(link);
-    if (ss == null) return raw;
     try {
       final cfg = jsonDecode(raw);
-      final outs = cfg['outbounds'];
-      if (outs is List) {
-        for (final ob in outs) {
-          if (ob is Map && ob['protocol'] == 'shadowsocks') {
-            ob['settings'] = {
-              'servers': [
-                {
-                  'address': ss['address'],
-                  'port': ss['port'],
-                  'method': ss['method'],
-                  'password': ss['password'],
-                  'level': 8,
-                  'ota': false
-                }
-              ]
+      cfg['dns'] = {
+        'servers': ['1.1.1.1', '8.8.8.8', 'localhost'],
+        'queryStrategy': 'UseIPv4'
+      };
+      if (cfg['inbounds'] is List) {
+        for (final inb in (cfg['inbounds'] as List)) {
+          if (inb is Map) {
+            inb['sniffing'] = {
+              'enabled': true,
+              'destOverride': ['http', 'tls', 'quic'],
+              'routeOnly': false
             };
+            if (inb['protocol'] == 'socks') {
+              inb['settings'] ??= {};
+              if (inb['settings'] is Map) inb['settings']['udp'] = true;
+            }
+          }
+        }
+      }
+      if (link.startsWith('ss://')) {
+        final ss = _parseSs(link);
+        if (ss != null && cfg['outbounds'] is List) {
+          for (final ob in (cfg['outbounds'] as List)) {
+            if (ob is Map && ob['protocol'] == 'shadowsocks') {
+              ob['settings'] = {
+                'servers': [
+                  {
+                    'address': ss['address'],
+                    'port': ss['port'],
+                    'method': ss['method'],
+                    'password': ss['password'],
+                    'level': 8,
+                    'ota': false
+                  }
+                ]
+              };
+            }
           }
         }
       }
