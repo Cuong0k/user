@@ -30,17 +30,18 @@ class VpnProvider extends ChangeNotifier {
     await _vpn.init();
   }
 
-  Future<void> toggle(ServerNode node, {bool proxyOnly = false}) async {
+  Future<void> toggle(ServerNode node, String uuid,
+      {bool proxyOnly = false}) async {
     if (_state == VpnState.connected || _state == VpnState.connecting) {
       await _vpn.disconnect();
       _activeNode = null;
     } else {
       _activeNode = node;
-      await _vpn.connect(node, proxyOnly: proxyOnly);
+      await _vpn.connect(node, uuid, proxyOnly: proxyOnly);
     }
   }
 
-  Future<int> ping(ServerNode node) => _vpn.ping(node);
+  Future<int> ping(ServerNode node, String uuid) => _vpn.ping(node, uuid);
 
   String _fmt(int bytesPerSec) {
     if (bytesPerSec < 1024) return '$bytesPerSec B/s';

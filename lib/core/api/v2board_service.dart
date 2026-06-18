@@ -46,7 +46,13 @@ class V2BoardService {
   /// Lấy link subscribe (chứa token sub để tải config node).
   Future<String> getSubscribeUrl() async {
     final data = await _api.get(Api.getSubscribe);
-    return data['subscribe_url'].toString();
+    return (data['subscribe_url'] ?? '').toString();
+  }
+
+  /// Lấy full thông tin subscribe (gồm uuid – dùng làm password cho node).
+  Future<Map<String, dynamic>> getSubscribeInfo() async {
+    final data = await _api.get(Api.getSubscribe);
+    return Map<String, dynamic>.from(data);
   }
 
   // ---------- Servers / Nodes ----------

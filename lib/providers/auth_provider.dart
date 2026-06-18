@@ -8,11 +8,13 @@ class AuthProvider extends ChangeNotifier {
 
   bool _loggedIn = false;
   UserInfo? _user;
+  String? _uuid;
   bool _loading = false;
   String? _error;
 
   bool get loggedIn => _loggedIn;
   UserInfo? get user => _user;
+  String? get uuid => _uuid;
   bool get loading => _loading;
   String? get error => _error;
 
@@ -57,9 +59,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> refreshUser() async {
     try {
       _user = await _svc.getUserInfo();
-      // cache link subscribe để VPN dùng
-      final sub = await _svc.getSubscribeUrl();
-      await AuthStorage.instance.saveSubscribe(sub);
+      // getSubscribe trả uuid + subscribe_url; uuid dùng làm password node
+      final sub = await _svc.getSubscribeInfo();
+      _uuid = (sub['uuid'] ?? _user?.uuid)?.toString();
+      final url = (sub['subscribe_url'] ?? '').toString();
+      if (url.isNotEmpty) await AuthStorage.instance.saveSubscribe(url);
     } catch (e) {
       _error = e.toString();
     }

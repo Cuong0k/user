@@ -1,17 +1,16 @@
 /// Một node/server từ /api/v1/user/server/fetch.
-/// v2board trả các field: name, type (vless/vmess/trojan/shadowsocks/hysteria),
-/// host, port, server_key, tags, rate, và phần protocol_settings tuỳ loại.
+/// Panel này trả field PHẲNG: server_port (port connect thật), cipher, host...
 class ServerNode {
   final int id;
   final String name;
   final String type;
   final String host;
-  final dynamic port;     // có thể "443" hoặc "20000-30000"
-  final List<String> tags;
-  final String rate;      // hệ số nhân lưu lượng, "1.0"
+  final dynamic port;        // port hiển thị
+  final dynamic serverPort;  // port connect thật (quan trọng)
+  final String? cipher;      // cho shadowsocks
+  final num rate;
   final bool isOnline;
-  final int? lastCheckAt;
-  final Map<String, dynamic> raw; // giữ nguyên để build cấu hình core
+  final Map<String, dynamic> raw;
 
   ServerNode({
     required this.id,
@@ -19,45 +18,63 @@ class ServerNode {
     required this.type,
     required this.host,
     required this.port,
-    required this.tags,
+    required this.serverPort,
+    this.cipher,
     required this.rate,
     required this.isOnline,
-    this.lastCheckAt,
     required this.raw,
   });
 
   factory ServerNode.fromJson(Map<String, dynamic> j) => ServerNode(
         id: j['id'] ?? 0,
         name: j['name']?.toString() ?? 'Node',
-        type: (j['type'] ?? 'vless').toString(),
+        type: (j['type'] ?? 'shadowsocks').toString(),
         host: j['host']?.toString() ?? '',
         port: j['port'] ?? 443,
-        tags: (j['tags'] is List)
-            ? List<String>.from((j['tags']).map((e) => e.toString()))
-            : <String>[],
-        rate: (j['rate'] ?? '1.0').toString(),
+        serverPort: j['server_port'] ?? j['port'] ?? 443,
+        cipher: j['cipher']?.toString(),
+        rate: j['rate'] ?? 1,
         isOnline: (j['is_online'] ?? 1) == 1,
-        lastCheckAt: j['last_check_at'],
         raw: j,
       );
 
-  /// Đoán mã quốc gia 2 ký tự từ tên node để hiển thị cờ.
+  /// Port dùng để kết nối (ưu tiên server_port).
+  String get connectPort => serverPort.toString().split('-').first;
+
+  /// Lấy mã quốc gia từ emoji cờ đầu tên (🇻🇳 -> VN), hoặc từ chữ.
   String get countryCode {
+    final flag = _flagFromEmoji(name);
+    if (flag != null) return flag;
     final n = name.toLowerCase();
     const map = {
-      'hong kong': 'hk', 'hongkong': 'hk', 'hk': 'hk', '香港': 'hk',
-      'singapore': 'sg', 'sg': 'sg', '新加坡': 'sg',
-      'japan': 'jp', 'tokyo': 'jp', 'jp': 'jp', '日本': 'jp',
-      'usa': 'us', 'united states': 'us', 'us': 'us', '美国': 'us',
-      'taiwan': 'tw', 'tw': 'tw', '台湾': 'tw',
-      'korea': 'kr', 'kr': 'kr', '韩国': 'kr',
-      'vietnam': 'vn', 'vn': 'vn', 'việt nam': 'vn',
-      'china': 'cn', 'cn': 'cn',
-      'uk': 'gb', 'london': 'gb', 'germany': 'de', 'france': 'fr',
+      'hong kong': 'HK', 'hk': 'HK',
+      'singapore': 'SG', 'sg': 'SG',
+      'japan': 'JP', 'jp': 'JP',
+      'us': 'US', 'united states': 'US', 'new york': 'US',
+      'taiwan': 'TW', 'tw': 'TW',
+      'korea': 'KR', 'kr': 'KR',
+      'vietnam': 'VN', 'vn': 'VN', 'vnpt': 'VN', 'viettel': 'VN',
     };
     for (final e in map.entries) {
-      if (n.contains(e.key)) return e.value.toUpperCase();
+      if (n.contains(e.key)) return e.value;
     }
     return 'UN';
   }
+
+  /// Giải mã cặp Regional Indicator (🇻🇳) thành "VN".
+  String? _flagFromEmoji(String s) {
+    final runes = s.runes.toList();
+    for (int i = 0; i < runes.length - 1; i++) {
+      final a = runes[i], b = runes[i + 1];
+      if (a >= 0x1F1E6 && a <= 0x1F1FF && b >= 0x1F1E6 && b <= 0x1F1FF) {
+        final c1 = String.fromCharCode(a - 0x1F1E6 + 65);
+        final c2 = String.fromCharCode(b - 0x1F1E6 + 65);
+        return '$c1$c2';
+      }
+    }
+    return null;
+  }
+
+  /// Tên sạch (bỏ emoji cờ ở đầu) để hiển thị.
+  String get cleanName => name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '').trim();
 }

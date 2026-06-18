@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/server_provider.dart';
 import '../../providers/vpn_provider.dart';
 import '../../core/models/server_node.dart';
+import '../../providers/auth_provider.dart';
 
 class NodeListScreen extends StatefulWidget {
   const NodeListScreen({super.key});
@@ -21,9 +22,10 @@ class _NodeListScreenState extends State<NodeListScreen> {
     setState(() => _testing = true);
     final servers = context.read<ServerProvider>();
     final vpn = context.read<VpnProvider>();
+    final uuid = context.read<AuthProvider>().uuid ?? '';
     for (final n in servers.nodes) {
       try {
-        final ms = await vpn.ping(n);
+        final ms = await vpn.ping(n, uuid);
         servers.setPing(n.id, ms);
       } catch (_) {
         servers.setPing(n.id, -1);
@@ -115,7 +117,7 @@ class _NodeTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: CountryFlag.fromCountryCode(node.countryCode, height: 28, width: 38),
       ),
-      title: Text(node.name,
+      title: Text(node.cleanName,
           style: TextStyle(
               fontWeight: FontWeight.w600,
               color: node.isOnline ? AppColors.textPrimary : AppColors.textSecondary)),

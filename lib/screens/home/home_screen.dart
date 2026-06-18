@@ -121,7 +121,13 @@ class _ConnectButton extends StatelessWidget {
             return;
           }
           try {
-            await context.read<VpnProvider>().toggle(node);
+            final uuid = context.read<AuthProvider>().uuid ?? '';
+            if (uuid.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Missing account uuid, please re-login')));
+              return;
+            }
+            await context.read<VpnProvider>().toggle(node, uuid);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context)
@@ -226,7 +232,7 @@ class _NodeSelector extends StatelessWidget {
                 child: CountryFlag.fromCountryCode(node.countryCode,
                     height: 28, width: 38),
               ),
-        title: Text(node?.name ?? 'Select a node',
+        title: Text(node?.cleanName ?? 'Select a node',
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(node == null ? 'Country/Region' : '${node.type} · x${node.rate}'),
         trailing: const Icon(Icons.chevron_right),
