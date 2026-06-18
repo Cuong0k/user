@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/api/v2board_service.dart';
 import '../core/api/subscribe_service.dart';
+import '../core/api/api_endpoints.dart';
 import '../core/models/server_node.dart';
 
 class ServerProvider extends ChangeNotifier {
@@ -10,7 +11,7 @@ class ServerProvider extends ChangeNotifier {
   ServerNode? _selected;
   bool _loading = false;
   String? _error;
-  final Map<int, int> _pings = {}; // id -> ms
+  final Map<int, int> _pings = {};
 
   List<ServerNode> get nodes => _nodes;
   ServerNode? get selected => _selected;
@@ -18,7 +19,6 @@ class ServerProvider extends ChangeNotifier {
   String? get error => _error;
   Map<int, int> get pings => _pings;
 
-  /// Gom node theo quốc gia để hiển thị màn "Country/Region".
   Map<String, List<ServerNode>> get byCountry {
     final m = <String, List<ServerNode>>{};
     for (final n in _nodes) {
@@ -32,16 +32,17 @@ class ServerProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      // Ưu tiên: tải node TỪ LINK SUBSCRIBE (giống v2rayNG -> luôn kết nối được)
       final info = await _svc.getSubscribeInfo();
-      final subUrl = (info['subscribe_url'] ?? '').toString();
-      if (subUrl.isNotEmpty) {
-        _nodes = await SubscribeService.instance.fetch(subUrl);
+      final token = (info['token'] ?? '').toString();
+      if (token.isNotEmpty) {
+        final url = '${Api.baseUrl}/api/v1/client/subscribe?token=$token';
+        _nodes = await SubscribeService.instance.fetch(url);
       }
-      // Dự phòng: nếu subscribe rỗng thì dùng server/fetch
       if (_nodes.isEmpty) {
-        _nodes = await _svc.fetchServers();
+        final sub = (info['subscribe_url'] ?? '').toString();
+        if (sub.isNotEmpty) _nodes = await SubscribeService.instance.fetch(sub);
       }
+      if (_nodes.isEmpty) _nodes = await _svc.fetchServers();
       _selected ??= _nodes.isNotEmpty ? _nodes.first : null;
     } catch (e) {
       _error = e.toString();
