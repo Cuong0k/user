@@ -4,7 +4,7 @@ class Api {
   Api._();
 
   /// Đổi thành domain panel của bạn, ví dụ: https://vpnstore.pro.vn
-  static const String baseUrl = 'https://client-user.jiangsuhk.com';
+  static const String baseUrl = 'https://your-panel.com';
 
   static const String prefix = '/api/v1';
 
