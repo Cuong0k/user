@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_v2ray_client/flutter_v2ray.dart';
+import 'package:flutter_v2ray/flutter_v2ray.dart';
 import '../models/server_node.dart';
 
 enum VpnState { disconnected, connecting, connected, disconnecting }
@@ -9,7 +9,7 @@ class VpnService {
   VpnService._();
   static final VpnService instance = VpnService._();
 
-  late final V2ray _v2ray;
+  late final FlutterV2ray _v2ray;
   bool _inited = false;
   void Function(VpnState state, V2RayStatus status)? onStatus;
 
@@ -24,17 +24,14 @@ class VpnService {
 
   Future<void> init() async {
     if (_inited) return;
-    _v2ray = V2ray(
+    _v2ray = FlutterV2ray(
       onStatusChanged: (status) {
         lastRawState = status.state;
         _trace('status=${status.state} up=${status.upload} down=${status.download}');
         onStatus?.call(_map(status.state), status);
       },
     );
-    await _v2ray.initialize(
-      notificationIconResourceType: 'mipmap',
-      notificationIconResourceName: 'ic_launcher',
-    );
+    await _v2ray.initializeV2Ray();
     _trace('initialize() done');
     _inited = true;
   }
@@ -65,14 +62,6 @@ class VpnService {
           }
         }
       }
-      if (m['outbounds'] is List) {
-        for (final ob in (m['outbounds'] as List)) {
-          if (ob is Map && ob['protocol'] == 'shadowsocks') {
-            ob.remove('streamSettings');
-            ob.remove('mux');
-          }
-        }
-      }
       m['routing'] = {
         'domainStrategy': 'AsIs',
         'rules': [
@@ -92,7 +81,7 @@ class VpnService {
     _trace('connect() start node=${node.cleanName}');
     await init();
     final link = _rawLink(node);
-    final parser = V2ray.parseFromURL(link);
+    final parser = FlutterV2ray.parseFromURL(link);
     _trace('parsed remark=${parser.remark}');
     final cfg = _sanitize(parser.getFullConfiguration());
     lastConfig = cfg;
@@ -107,7 +96,6 @@ class VpnService {
       remark: remark,
       config: cfg,
       blockedApps: null,
-      bypassSubnets: null,
       proxyOnly: proxyOnly,
     );
     _trace('startV2Ray() returned');
@@ -119,12 +107,7 @@ class VpnService {
   }
 
   Future<List<String>> fetchLogs() async {
-    try {
-      final logs = await _v2ray.getLogs();
-      return logs.isEmpty ? ['(log rong)'] : logs;
-    } catch (e) {
-      return ['getLogs loi: $e'];
-    }
+    return ['(engine flutter_v2ray cu khong ho tro getLogs)'];
   }
 
   Future<int> ping(ServerNode node) async {
