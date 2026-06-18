@@ -47,52 +47,75 @@ class VpnService {
     final link = _rawLink(node);
     final parser = FlutterV2ray.parseFromURL(link);
     final raw = parser.getFullConfiguration();
+    Map<String, dynamic> cfg;
     try {
-      final cfg = jsonDecode(raw);
-      cfg['dns'] = {
-        'servers': ['1.1.1.1', '8.8.8.8', 'localhost'],
-        'queryStrategy': 'UseIPv4'
-      };
-      if (cfg['inbounds'] is List) {
-        for (final inb in (cfg['inbounds'] as List)) {
-          if (inb is Map) {
-            inb['sniffing'] = {
-              'enabled': true,
-              'destOverride': ['http', 'tls', 'quic'],
-              'routeOnly': false
-            };
-            if (inb['protocol'] == 'socks') {
-              inb['settings'] ??= {};
-              if (inb['settings'] is Map) inb['settings']['udp'] = true;
-            }
-          }
-        }
-      }
-      if (link.startsWith('ss://')) {
-        final ss = _parseSs(link);
-        if (ss != null && cfg['outbounds'] is List) {
-          for (final ob in (cfg['outbounds'] as List)) {
-            if (ob is Map && ob['protocol'] == 'shadowsocks') {
-              ob['settings'] = {
-                'servers': [
-                  {
-                    'address': ss['address'],
-                    'port': ss['port'],
-                    'method': ss['method'],
-                    'password': ss['password'],
-                    'level': 8,
-                    'ota': false
-                  }
-                ]
-              };
-            }
-          }
-        }
-      }
-      return jsonEncode(cfg);
+      cfg = Map<String, dynamic>.from(jsonDecode(raw));
     } catch (_) {
       return raw;
     }
+    if (cfg['inbounds'] is List) {
+      for (final inb in (cfg['inbounds'] as List)) {
+        if (inb is Map) {
+          inb['sniffing'] = {
+            'enabled': true,
+            'destOverride': ['http', 'tls', 'quic'],
+            'routeOnly': false
+          };
+          if (inb['protocol'] == 'socks') {
+            inb['settings'] ??= {};
+            if (inb['settings'] is Map) inb['settings']['udp'] = true;
+          }
+        }
+      }
+    }
+    final proxy = _proxyOutbound(link, raw);
+    if (proxy == null) return raw;
+    cfg['outbounds'] = [
+      proxy,
+      {'tag': 'direct', 'protocol': 'freedom', 'settings': {'domainStrategy': 'UseIP'}},
+      {'tag': 'block', 'protocol': 'blackhole', 'settings': {'response': {'type': 'http'}}}
+    ];
+    cfg['routing'] = {
+      'domainStrategy': 'AsIs',
+      'rules': [
+        {'type': 'field', 'ip': ['geoip:private'], 'outboundTag': 'direct'},
+        {'type': 'field', 'port': '0-65535', 'outboundTag': 'proxy'}
+      ]
+    };
+    cfg['dns'] = {'servers': ['1.1.1.1', '8.8.8.8'], 'queryStrategy': 'UseIPv4'};
+    return jsonEncode(cfg);
+  }
+
+  Map<String, dynamic>? _proxyOutbound(String link, String raw) {
+    if (link.startsWith('ss://')) {
+      final ss = _parseSs(link);
+      if (ss == null) return null;
+      return {
+        'tag': 'proxy',
+        'protocol': 'shadowsocks',
+        'settings': {
+          'servers': [
+            {'address': ss['address'], 'port': ss['port'], 'method': ss['method'], 'password': ss['password'], 'level': 8, 'ota': false}
+          ]
+        },
+        'streamSettings': {'network': 'tcp'},
+        'mux': {'enabled': false, 'concurrency': -1}
+      };
+    }
+    try {
+      final cfg = jsonDecode(raw);
+      final outs = cfg['outbounds'];
+      if (outs is List) {
+        for (final ob in outs) {
+          if (ob is Map && ob['protocol'] != 'freedom' && ob['protocol'] != 'blackhole') {
+            final m = Map<String, dynamic>.from(ob);
+            m['tag'] = 'proxy';
+            return m;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   Map<String, dynamic>? _parseSs(String link) {
@@ -133,11 +156,7 @@ class VpnService {
   Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
     await init();
     if (!await requestPermission()) throw Exception('VPN permission denied');
-    await _v2ray.startV2Ray(
-      remark: node.cleanName,
-      config: _config(node),
-      proxyOnly: proxyOnly,
-    );
+    await _v2ray.startV2Ray(remark: node.cleanName, config: _config(node), proxyOnly: proxyOnly);
   }
 
   Future<void> disconnect() async => _v2ray.stopV2Ray();
