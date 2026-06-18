@@ -62,11 +62,19 @@ class VpnService {
           }
         }
       }
+      if (m['outbounds'] is List) {
+        for (final ob in (m['outbounds'] as List)) {
+          if (ob is Map && ob['protocol'] == 'shadowsocks') {
+            ob.remove('streamSettings');
+            ob.remove('mux');
+          }
+        }
+      }
       m['routing'] = {
         'domainStrategy': 'AsIs',
         'rules': [
-          {'type': 'field', 'port': 53, 'outboundTag': 'direct'},
-          {'type': 'field', 'network': 'tcp,udp', 'outboundTag': 'proxy'}
+          {'type': 'field', 'network': 'udp', 'outboundTag': 'direct'},
+          {'type': 'field', 'network': 'tcp', 'outboundTag': 'proxy'}
         ]
       };
       m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
