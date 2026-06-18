@@ -48,6 +48,10 @@ class VpnProvider extends ChangeNotifier {
 
   Future<int> ping(ServerNode node) => _vpn.ping(node);
 
+  String get rawState => _vpn.lastRawState;
+  List<String> get trace => _vpn.debugTrace;
+  Future<List<String>> logs() => _vpn.fetchLogs();
+
   String _fmt(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';

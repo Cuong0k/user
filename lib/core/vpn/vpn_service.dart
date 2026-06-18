@@ -12,29 +12,37 @@ class VpnService {
   bool _inited = false;
   void Function(VpnState state, V2RayStatus status)? onStatus;
 
+  String lastRawState = '(chưa có)';
+  final List<String> debugTrace = [];
+
+  void _trace(String s) {
+    debugTrace.add('${DateTime.now().toIso8601String().substring(11, 19)}  $s');
+    if (debugTrace.length > 60) debugTrace.removeAt(0);
+  }
+
   Future<void> init() async {
     if (_inited) return;
     _v2ray = V2ray(
-      onStatusChanged: (status) => onStatus?.call(_map(status.state), status),
+      onStatusChanged: (status) {
+        lastRawState = status.state;
+        _trace('status=${status.state} up=${status.upload} down=${status.download}');
+        onStatus?.call(_map(status.state), status);
+      },
     );
     await _v2ray.initialize(
       notificationIconResourceType: 'mipmap',
       notificationIconResourceName: 'ic_launcher',
     );
+    _trace('initialize() done');
     _inited = true;
   }
 
   VpnState _map(String s) {
-    switch (s.toUpperCase()) {
-      case 'CONNECTED':
-        return VpnState.connected;
-      case 'CONNECTING':
-        return VpnState.connecting;
-      case 'DISCONNECTING':
-        return VpnState.disconnecting;
-      default:
-        return VpnState.disconnected;
-    }
+    final u = s.toUpperCase();
+    if (u.contains('CONNECTED')) return VpnState.connected;
+    if (u.contains('CONNECTING')) return VpnState.connecting;
+    if (u.contains('DISCONNECTING')) return VpnState.disconnecting;
+    return VpnState.disconnected;
   }
 
   Future<bool> requestPermission() => _v2ray.requestPermission();
@@ -46,10 +54,16 @@ class VpnService {
   }
 
   Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
+    _trace('connect() start node=${node.cleanName}');
     await init();
-    final parser = V2ray.parseFromURL(_rawLink(node));
-    if (!proxyOnly && !await requestPermission()) {
-      throw Exception('VPN permission denied');
+    final link = _rawLink(node);
+    _trace('link=${link.length > 40 ? link.substring(0, 40) + "..." : link}');
+    final parser = V2ray.parseFromURL(link);
+    _trace('parsed remark=${parser.remark}');
+    if (!proxyOnly) {
+      final ok = await requestPermission();
+      _trace('requestPermission=$ok');
+      if (!ok) throw Exception('VPN permission denied');
     }
     final remark = node.cleanName.isNotEmpty ? node.cleanName : parser.remark;
     await _v2ray.startV2Ray(
@@ -59,9 +73,22 @@ class VpnService {
       bypassSubnets: null,
       proxyOnly: proxyOnly,
     );
+    _trace('startV2Ray() returned');
   }
 
-  Future<void> disconnect() async => _v2ray.stopV2Ray();
+  Future<void> disconnect() async {
+    _trace('disconnect()');
+    await _v2ray.stopV2Ray();
+  }
+
+  Future<List<String>> fetchLogs() async {
+    try {
+      final logs = await _v2ray.getLogs();
+      return logs.isEmpty ? ['(log rỗng)'] : logs;
+    } catch (e) {
+      return ['getLogs lỗi: $e'];
+    }
+  }
 
   Future<int> ping(ServerNode node) async {
     final host = node.host;

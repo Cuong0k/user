@@ -148,6 +148,7 @@ class _ConnectButton extends StatelessWidget {
             }
           }
         },
+        onLongPress: () => _showDebug(context),
         child: Container(
           width: 200,
           height: 200,
@@ -181,6 +182,41 @@ class _ConnectButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showDebug(BuildContext context) async {
+    final vpn = context.read<VpnProvider>();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('VPN Debug', style: TextStyle(color: Colors.white)),
+        content: FutureBuilder<List<String>>(
+          future: vpn.logs(),
+          builder: (c, snap) {
+            final logs = snap.data ?? ['(dang tai log...)'];
+            final text = 'rawState: ${vpn.rawState}\n\n'
+                '=== TRACE ===\n${vpn.trace.join('\n')}\n\n'
+                '=== XRAY LOG (cuoi) ===\n'
+                '${logs.length > 40 ? logs.sublist(logs.length - 40).join('\n') : logs.join('\n')}';
+            return SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: SelectableText(text,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 11, height: 1.4)),
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Dong'),
+          ),
+        ],
       ),
     );
   }
