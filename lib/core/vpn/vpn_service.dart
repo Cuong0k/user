@@ -52,7 +52,24 @@ class VpnService {
     return link;
   }
 
-  String _sanitize(String raw) {
+  String? _extractSsHost(String rawConfig) {
+    try {
+      final m = jsonDecode(rawConfig);
+      final outs = m['outbounds'];
+      if (outs is! List) return null;
+      for (final ob in outs) {
+        if (ob is Map && ob['protocol'] == 'shadowsocks') {
+          final servers = ob['settings']?['servers'];
+          if (servers is List && servers.isNotEmpty) {
+            return servers[0]['address'] as String?;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String _sanitize(String raw, {String? ssHostBypass}) {
     try {
       final m = Map<String, dynamic>.from(jsonDecode(raw));
       if (m['inbounds'] is List) {
@@ -70,13 +87,16 @@ class VpnService {
           }
         }
       }
-      m['routing'] = {
-        'domainStrategy': 'AsIs',
-        'rules': [
-          {'type': 'field', 'network': 'udp', 'outboundTag': 'direct'},
-          {'type': 'field', 'network': 'tcp', 'outboundTag': 'proxy'}
-        ]
-      };
+      final rules = <Map<String, dynamic>>[];
+      if (ssHostBypass != null && ssHostBypass.isNotEmpty) {
+        rules.add({'type': 'field', 'domain': ['full:$ssHostBypass'], 'outboundTag': 'direct'});
+        _trace('domain bypass: $ssHostBypass -> direct');
+      }
+      rules.addAll([
+        {'type': 'field', 'network': 'udp', 'outboundTag': 'direct'},
+        {'type': 'field', 'network': 'tcp', 'outboundTag': 'proxy'}
+      ]);
+      m['routing'] = {'domainStrategy': 'AsIs', 'rules': rules};
       m['dns'] = {'servers': ['1.1.1.1', '8.8.8.8']};
       return jsonEncode(m);
     } catch (e) {
@@ -91,7 +111,24 @@ class VpnService {
     final link = _rawLink(node);
     final parser = FlutterV2ray.parseFromURL(link);
     _trace('parsed remark=${parser.remark}');
-    final cfg = _sanitize(parser.getFullConfiguration());
+    final rawFromParser = parser.getFullConfiguration();
+    final ssHost = _extractSsHost(rawFromParser);
+    _trace('ss host: $ssHost');
+    List<String>? bypassSubnets;
+    if (!proxyOnly && ssHost != null) {
+      try {
+        final addrs = await InternetAddress.lookup(ssHost);
+        bypassSubnets = addrs
+            .where((a) => a.type == InternetAddressType.IPv4)
+            .map((a) => '${a.address}/32')
+            .toList();
+        if (bypassSubnets.isEmpty) bypassSubnets = null;
+        _trace('bypassSubnets: $bypassSubnets');
+      } catch (e) {
+        _trace('lookup failed: $e');
+      }
+    }
+    final cfg = _sanitize(rawFromParser, ssHostBypass: ssHost);
     lastConfig = cfg;
     _trace('config len=${cfg.length}');
     if (!proxyOnly) {
@@ -104,6 +141,7 @@ class VpnService {
       remark: remark,
       config: cfg,
       blockedApps: null,
+      bypassSubnets: bypassSubnets,
       proxyOnly: proxyOnly,
     );
     _trace('startV2Ray() returned');
@@ -115,7 +153,7 @@ class VpnService {
   }
 
   Future<List<String>> fetchLogs() async {
-    return ['(engine flutter_v2ray cu khong ho tro getLogs)'];
+    return ['(engine flutter_v2ray cu - xem trace tren)'];
   }
 
   Future<int> ping(ServerNode node) async {
