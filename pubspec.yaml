@@ -16,7 +16,7 @@ dependencies:
   # flutter_v2ray nhúng xray-core, hỗ trợ VLESS / VMess / Trojan / Shadowsocks.
   # SlagClient gốc dùng core sing-box (libomnxt.so). flutter_v2ray là lựa chọn
   # mã nguồn mở tương đương để dựng lại nhanh. Có thể thay bằng sing-box plugin sau.
-  flutter_v2ray: ^1.0.9
+  flutter_v2ray_client: ^3.0.0
 
   # --- Networking / state ---
   dio: ^5.7.0
