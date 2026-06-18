@@ -1,15 +1,17 @@
-/// Một node/server từ /api/v1/user/server/fetch.
-/// Panel này trả field PHẲNG: server_port (port connect thật), cipher, host...
+import 'dart:convert';
+
+/// Node VPN. Có 2 nguồn:
+///  - fromLink: parse từ share link trong subscribe (ƯU TIÊN, luôn đúng)
+///  - fromJson: từ /user/server/fetch (chỉ để hiển thị/dự phòng)
 class ServerNode {
   final int id;
   final String name;
   final String type;
   final String host;
-  final dynamic port;        // port hiển thị
-  final dynamic serverPort;  // port connect thật (quan trọng)
-  final String? cipher;      // cho shadowsocks
+  final String port;
   final num rate;
   final bool isOnline;
+  final String? shareLink; // link gốc ss:// vmess:// ... dùng để connect
   final Map<String, dynamic> raw;
 
   ServerNode({
@@ -18,42 +20,87 @@ class ServerNode {
     required this.type,
     required this.host,
     required this.port,
-    required this.serverPort,
-    this.cipher,
     required this.rate,
     required this.isOnline,
-    required this.raw,
+    this.shareLink,
+    this.raw = const {},
   });
+
+  /// Parse từ share link (nguồn chính).
+  factory ServerNode.fromLink(int id, String link) {
+    final scheme = link.split('://').first;
+    String name = '';
+    String host = '';
+    String port = '';
+
+    final hashIdx = link.indexOf('#');
+    if (hashIdx >= 0) {
+      name = Uri.decodeComponent(link.substring(hashIdx + 1));
+    }
+
+    try {
+      if (scheme == 'vmess') {
+        final b64 = link.substring('vmess://'.length).split('#').first;
+        final json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64))));
+        name = (json['ps'] ?? name).toString();
+        host = (json['add'] ?? '').toString();
+        port = (json['port'] ?? '').toString();
+      } else {
+        // ss / vless / trojan: userinfo@host:port?...#name
+        final afterScheme = link.substring(scheme.length + 3);
+        final atIdx = afterScheme.lastIndexOf('@');
+        if (atIdx >= 0) {
+          final hostPart = afterScheme.substring(atIdx + 1);
+          final hp = hostPart.split(RegExp(r'[?#]')).first;
+          final c = hp.lastIndexOf(':');
+          if (c >= 0) {
+            host = hp.substring(0, c);
+            port = hp.substring(c + 1);
+          } else {
+            host = hp;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (name.isEmpty) name = '$scheme node';
+
+    return ServerNode(
+      id: id,
+      name: name,
+      type: scheme,
+      host: host,
+      port: port,
+      rate: 1,
+      isOnline: true,
+      shareLink: link,
+    );
+  }
 
   factory ServerNode.fromJson(Map<String, dynamic> j) => ServerNode(
         id: j['id'] ?? 0,
         name: j['name']?.toString() ?? 'Node',
         type: (j['type'] ?? 'shadowsocks').toString(),
         host: j['host']?.toString() ?? '',
-        port: j['port'] ?? 443,
-        serverPort: j['server_port'] ?? j['port'] ?? 443,
-        cipher: j['cipher']?.toString(),
+        port: (j['server_port'] ?? j['port'] ?? 443).toString(),
         rate: j['rate'] ?? 1,
         isOnline: (j['is_online'] ?? 1) == 1,
         raw: j,
       );
 
-  /// Port dùng để kết nối (ưu tiên server_port).
-  String get connectPort => serverPort.toString().split('-').first;
-
-  /// Lấy mã quốc gia từ emoji cờ đầu tên (🇻🇳 -> VN), hoặc từ chữ.
   String get countryCode {
     final flag = _flagFromEmoji(name);
     if (flag != null) return flag;
     final n = name.toLowerCase();
     const map = {
       'hong kong': 'HK', 'hk': 'HK',
-      'singapore': 'SG', 'sg': 'SG',
+      'singapore': 'SG', 'sgp': 'SG', 'sg': 'SG',
       'japan': 'JP', 'jp': 'JP',
-      'us': 'US', 'united states': 'US', 'new york': 'US',
+      'united states': 'US', 'new york': 'US', 'us': 'US',
       'taiwan': 'TW', 'tw': 'TW',
       'korea': 'KR', 'kr': 'KR',
-      'vietnam': 'VN', 'vn': 'VN', 'vnpt': 'VN', 'viettel': 'VN',
+      'india': 'IN', 'bangalore': 'IN',
+      'vietnam': 'VN', 'vnpt': 'VN', 'viettel': 'VN', 'vn': 'VN',
     };
     for (final e in map.entries) {
       if (n.contains(e.key)) return e.value;
@@ -61,20 +108,18 @@ class ServerNode {
     return 'UN';
   }
 
-  /// Giải mã cặp Regional Indicator (🇻🇳) thành "VN".
   String? _flagFromEmoji(String s) {
     final runes = s.runes.toList();
     for (int i = 0; i < runes.length - 1; i++) {
       final a = runes[i], b = runes[i + 1];
       if (a >= 0x1F1E6 && a <= 0x1F1FF && b >= 0x1F1E6 && b <= 0x1F1FF) {
-        final c1 = String.fromCharCode(a - 0x1F1E6 + 65);
-        final c2 = String.fromCharCode(b - 0x1F1E6 + 65);
-        return '$c1$c2';
+        return String.fromCharCode(a - 0x1F1E6 + 65) +
+            String.fromCharCode(b - 0x1F1E6 + 65);
       }
     }
     return null;
   }
 
-  /// Tên sạch (bỏ emoji cờ ở đầu) để hiển thị.
-  String get cleanName => name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '').trim();
+  String get cleanName =>
+      name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '').trim();
 }

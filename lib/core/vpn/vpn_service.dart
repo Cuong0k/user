@@ -38,10 +38,9 @@ class VpnService {
 
   Future<bool> requestPermission() => _v2ray.requestPermission();
 
-  Future<void> connect(ServerNode node, String uuid,
-      {bool proxyOnly = false}) async {
+  Future<void> connect(ServerNode node, {bool proxyOnly = false}) async {
     await init();
-    final link = buildShareLink(node, uuid);
+    final link = node.shareLink ?? buildShareLink(node, '');
     final config = FlutterV2ray.parseFromURL(link);
     if (!await requestPermission()) throw Exception('VPN permission denied');
     await _v2ray.startV2Ray(
@@ -53,8 +52,8 @@ class VpnService {
 
   Future<void> disconnect() async => _v2ray.stopV2Ray();
 
-  Future<int> ping(ServerNode node, String uuid) async {
-    final link = buildShareLink(node, uuid);
+  Future<int> ping(ServerNode node) async {
+    final link = node.shareLink ?? buildShareLink(node, '');
     final config = FlutterV2ray.parseFromURL(link);
     return _v2ray.getServerDelay(config: config.getFullConfiguration());
   }

@@ -22,10 +22,9 @@ class _NodeListScreenState extends State<NodeListScreen> {
     setState(() => _testing = true);
     final servers = context.read<ServerProvider>();
     final vpn = context.read<VpnProvider>();
-    final uuid = context.read<AuthProvider>().uuid ?? '';
     for (final n in servers.nodes) {
       try {
-        final ms = await vpn.ping(n, uuid);
+        final ms = await vpn.ping(n);
         servers.setPing(n.id, ms);
       } catch (_) {
         servers.setPing(n.id, -1);

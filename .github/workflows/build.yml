@@ -1,62 +1,31 @@
 name: Build APK
-
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:        # cho phép bấm "Run workflow" thủ công
-
+    branches: [ main ]
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.27.0'   # khớp Dart sdk ^3.5 trong pubspec
-
-      # Sinh thư mục android/ (giữ nguyên lib/ và pubspec.yaml)
-      - name: Generate Android project
-        run: flutter create --platforms=android --org com.slaglab .
-
-      # flutter_v2ray cần minSdk 24 (giống app gốc)
-      - name: Set minSdk = 24
+          flutter-version: '3.27.0'
+      - run: flutter create --platforms=android --org com.slaglab .
+      - name: Set minSdk 24 + app name
         run: |
-          GRADLE_KTS=android/app/build.gradle.kts
-          GRADLE_GROOVY=android/app/build.gradle
-          if [ -f "$GRADLE_KTS" ]; then
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' "$GRADLE_KTS"
-            grep -q "minSdk = 24" "$GRADLE_KTS" || sed -i 's/minSdk =.*/minSdk = 24/' "$GRADLE_KTS"
-          fi
-          if [ -f "$GRADLE_GROOVY" ]; then
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' "$GRADLE_GROOVY"
-          fi
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Build APK (release, split per ABI)
-        run: flutter build apk --release --split-per-abi
-
-      # arm64 là bản dùng cho hầu hết điện thoại hiện đại (giống app gốc chỉ có arm64)
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            [ -f "$f" ] && sed -i 's/flutter.minSdkVersion/24/g' "$f"
+          done
+          sed -i 's/android:label="[^"]*"/android:label="VPNChina"/' android/app/src/main/AndroidManifest.xml
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
         with:
-          name: slag-clone-apk
+          name: vpnchina-apk
           path: build/app/outputs/flutter-apk/*.apk
-
-      # (tuỳ chọn) tạo Release để tải link trực tiếp khi push tag v*
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/app/outputs/flutter-apk/*.apk

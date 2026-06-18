@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../core/api/v2board_service.dart';
+import '../core/api/subscribe_service.dart';
 import '../core/models/server_node.dart';
 
 class ServerProvider extends ChangeNotifier {
@@ -31,7 +32,16 @@ class ServerProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _nodes = await _svc.fetchServers();
+      // Ưu tiên: tải node TỪ LINK SUBSCRIBE (giống v2rayNG -> luôn kết nối được)
+      final info = await _svc.getSubscribeInfo();
+      final subUrl = (info['subscribe_url'] ?? '').toString();
+      if (subUrl.isNotEmpty) {
+        _nodes = await SubscribeService.instance.fetch(subUrl);
+      }
+      // Dự phòng: nếu subscribe rỗng thì dùng server/fetch
+      if (_nodes.isEmpty) {
+        _nodes = await _svc.fetchServers();
+      }
       _selected ??= _nodes.isNotEmpty ? _nodes.first : null;
     } catch (e) {
       _error = e.toString();

@@ -20,7 +20,7 @@ class HomeScreen extends StatelessWidget {
     final node = servers.selected;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('SlagDemo')),
+      appBar: AppBar(title: const Text('VPNChina')),
       body: RefreshIndicator(
         onRefresh: () async {
           await servers.load();
@@ -121,13 +121,7 @@ class _ConnectButton extends StatelessWidget {
             return;
           }
           try {
-            final uuid = context.read<AuthProvider>().uuid ?? '';
-            if (uuid.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Missing account uuid, please re-login')));
-              return;
-            }
-            await context.read<VpnProvider>().toggle(node, uuid);
+            await context.read<VpnProvider>().toggle(node);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context)
